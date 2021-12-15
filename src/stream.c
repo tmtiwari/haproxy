@@ -460,7 +460,7 @@ struct stream *stream_new(struct session *sess, enum obj_type *origin, struct bu
 	si_set_state(&s->si[0], SI_ST_EST);
 	s->si[0].hcto = sess->fe->timeout.clientfin;
 
-	if (cs && cs->conn->mux) {
+	if (cs_conn(cs) && cs->conn->mux) {
 		if (cs->conn->mux->flags & MX_FL_CLEAN_ABRT)
 			s->si[0].flags |= SI_FL_CLEAN_ABRT;
 		if (cs->conn->mux->flags & MX_FL_HTX)
@@ -888,8 +888,7 @@ int stream_set_timeout(struct stream *s, enum act_timeout_name name, int timeout
 static void back_establish(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
-	struct conn_stream *srv_cs = objt_cs(si->end);
-	struct connection *conn = srv_cs ? srv_cs->conn : objt_conn(si->end);
+	struct connection *conn = cs_conn(objt_cs(si->end));
 	struct channel *req = &s->req;
 	struct channel *rep = &s->res;
 
@@ -935,7 +934,7 @@ static void back_establish(struct stream *s)
 
 	si_rx_endp_more(si);
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
-	if (objt_cs(si->end)) {
+	if (conn) {
 		/* real connections have timeouts
 		 * if already defined, it means that a set-timeout rule has
 		 * been executed so do not overwrite them
@@ -2155,9 +2154,9 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (objt_cs(si_f->end) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->rcv_pipe &&
+	    (cs_conn(objt_cs(si_f->end)) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->rcv_pipe &&
 	     __objt_cs(si_f->end)->conn->mux && __objt_cs(si_f->end)->conn->mux->rcv_pipe) &&
-	    (objt_cs(si_b->end) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->snd_pipe &&
+	    (cs_conn(objt_cs(si_b->end)) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->snd_pipe &&
 	     __objt_cs(si_b->end)->conn->mux && __objt_cs(si_b->end)->conn->mux->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
@@ -2348,9 +2347,9 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (!(res->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    res->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (objt_cs(si_f->end) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->snd_pipe &&
+	    (cs_conn(objt_cs(si_f->end)) && __objt_cs(si_f->end)->conn->xprt && __objt_cs(si_f->end)->conn->xprt->snd_pipe &&
 	     __objt_cs(si_f->end)->conn->mux && __objt_cs(si_f->end)->conn->mux->snd_pipe) &&
-	    (objt_cs(si_b->end) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->rcv_pipe &&
+	    (cs_conn(objt_cs(si_b->end)) && __objt_cs(si_b->end)->conn->xprt && __objt_cs(si_b->end)->conn->xprt->rcv_pipe &&
 	     __objt_cs(si_b->end)->conn->mux && __objt_cs(si_b->end)->conn->mux->rcv_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
@@ -2427,18 +2426,18 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 		if (si_b->state == SI_ST_CLO &&
 		    si_b->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
-				      s->uniq_id, s->be->id,
-			              objt_cs(si_f->end) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
-			              objt_cs(si_b->end) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
+				     s->uniq_id, s->be->id,
+				     cs_conn(objt_cs(si_f->end)) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
+				     cs_conn(objt_cs(si_b->end)) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 
 		if (si_f->state == SI_ST_CLO &&
 		    si_f->prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
-				      s->uniq_id, s->be->id,
-			              objt_cs(si_f->end) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
-			              objt_cs(si_b->end) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
+				     s->uniq_id, s->be->id,
+				     cs_conn(objt_cs(si_f->end)) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
+				     cs_conn(objt_cs(si_b->end)) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
 			DISGUISE(write(1, trash.area, trash.data));
 		}
 	}
@@ -2504,9 +2503,9 @@ struct task *process_stream(struct task *t, void *context, unsigned int state)
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
-			      s->uniq_id, s->be->id,
-		              objt_cs(si_f->end) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
-		              objt_cs(si_b->end) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
+			     s->uniq_id, s->be->id,
+			     cs_conn(objt_cs(si_f->end)) ? (unsigned short)__objt_cs(si_f->end)->conn->handle.fd : -1,
+			     cs_conn(objt_cs(si_b->end)) ? (unsigned short)__objt_cs(si_b->end)->conn->handle.fd : -1);
 		DISGUISE(write(1, trash.area, trash.data));
 	}
 
@@ -3282,7 +3281,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     strm->si[1].err_type, strm->si[1].wait_event.events);
 
-		if ((cs = objt_cs(strm->si[0].end)) != NULL) {
+		if (cs_conn(objt_cs(strm->si[0].end)) != NULL) {
+			cs = __objt_cs(strm->si[0].end);
 			conn = cs->conn;
 
 			chunk_appendf(&trash,
@@ -3318,7 +3318,8 @@ static int stats_dump_full_strm_to_buffer(struct stream_interface *si, struct st
 			              (unsigned long long)tmpctx->t->cpu_time, (unsigned long long)tmpctx->t->lat_time);
 		}
 
-		if ((cs = objt_cs(strm->si[1].end)) != NULL) {
+		if (cs_conn(objt_cs(strm->si[1].end)) != NULL) {
+			cs = __objt_cs(strm->si[1].end);
 			conn = cs->conn;
 
 			chunk_appendf(&trash,
