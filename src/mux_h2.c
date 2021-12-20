@@ -1540,7 +1540,7 @@ static struct h2s *h2c_frt_stream_new(struct h2c *h2c, int id, struct buffer *in
 	if (flags & H2_SF_EXT_CONNECT_RCVD)
 		cs->flags |= CS_FL_WEBSOCKET;
 
-	if (stream_create_from_cs(cs, input) < 0)
+	if (!stream_new(h2c->conn->owner, cs, input))
 		goto out_free_cs;
 
 	/* We want the accept date presented to the next stream to be the one

@@ -396,6 +396,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	struct applet *applet = &httpclient_applet;
 	struct appctx *appctx;
 	struct session *sess;
+	struct conn_stream *cs;
 	struct stream *s;
 	int len;
 	struct split_url out;
@@ -419,9 +420,14 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_appctx;
 	}
-	if ((s = stream_new(sess, &appctx->obj_type, &BUF_NULL)) == NULL) {
+	cs = cs_new(&appctx->obj_type);
+	if (!cs) {
+		ha_alert("httpclient: out of memory in %s:%d.\n", __FUNCTION__, __LINE__);
+		goto out_free_sess;
+	}
+	if ((s = stream_new(sess, cs, &BUF_NULL)) == NULL) {
 		ha_alert("httpclient: Failed to initialize stream %s:%d.\n", __FUNCTION__, __LINE__);
-		goto out_free_appctx;
+		goto out_free_cs;
 	}
 
 	if (!sockaddr_alloc(&s->si[1].dst, &hc->dst, sizeof(hc->dst))) {
@@ -452,7 +458,6 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	si_cant_get(&s->si[0]);
 	appctx_wakeup(appctx);
 
-	task_wakeup(s->task, TASK_WOKEN_INIT);
 	hc->appctx = appctx;
 	hc->flags |= HTTPCLIENT_FS_STARTED;
 	appctx->ctx.httpclient.ptr = hc;
@@ -463,6 +468,8 @@ struct appctx *httpclient_start(struct httpclient *hc)
 out_free_stream:
 	LIST_DELETE(&s->list);
 	pool_free(pool_head_stream, s);
+out_free_cs:
+	cs_free(cs);
 out_free_sess:
 	session_free(sess);
 out_free_appctx:
