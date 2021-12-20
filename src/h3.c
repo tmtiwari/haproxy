@@ -198,7 +198,7 @@ static int h3_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 			htx_add_endof(htx, HTX_BLK_EOH);
 			htx_to_buf(htx, &htx_buf);
 
-			cs = cs_new(qcs->qcc->conn, qcs->qcc->conn->target);
+			cs = cs_new(qcs->qcc->conn);
 			cs->ctx = qcs;
 			stream_create_from_cs(cs, &htx_buf);
 
