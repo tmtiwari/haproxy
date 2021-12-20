@@ -2687,7 +2687,7 @@ static int dump_servers_state(struct stream_interface *si)
  */
 static int cli_io_handler_servers_state(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
@@ -2734,7 +2734,7 @@ static int cli_io_handler_servers_state(struct appctx *appctx)
  */
 static int cli_io_handler_show_backend(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	struct proxy *curproxy;
 
 	chunk_reset(&trash);
@@ -3037,7 +3037,7 @@ static int cli_parse_show_errors(char **args, char *payload, struct appctx *appc
  */
 static int cli_io_handler_show_errors(struct appctx *appctx)
 {
-	struct stream_interface *si = appctx->owner;
+	struct stream_interface *si = cs_si(appctx->owner);
 	extern const char *monthname[12];
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
