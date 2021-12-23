@@ -430,7 +430,7 @@ struct appctx *httpclient_start(struct httpclient *hc)
 		goto out_free_cs;
 	}
 
-	if (!sockaddr_alloc(&s->si[1].dst, &hc->dst, sizeof(hc->dst))) {
+	if (!sockaddr_alloc(&cs_si(s->csb)->dst, &hc->dst, sizeof(hc->dst))) {
 		ha_alert("httpclient: Failed to initialize stream in %s:%d.\n", __FUNCTION__, __LINE__);
 		goto out_free_stream;
 	}
@@ -451,11 +451,11 @@ struct appctx *httpclient_start(struct httpclient *hc)
 	}
 
 	s->flags |= SF_ASSIGNED|SF_ADDR_SET;
-	s->si[1].flags |= SI_FL_NOLINGER;
+	cs_si(s->csb)->flags |= SI_FL_NOLINGER;
 	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* applet is waiting for data */
-	si_cant_get(&s->si[0]);
+	si_cant_get(cs_si(s->csf));
 	appctx_wakeup(appctx);
 
 	hc->appctx = appctx;
