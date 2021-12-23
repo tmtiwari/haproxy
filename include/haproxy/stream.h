@@ -24,7 +24,7 @@
 
 #include <haproxy/action-t.h>
 #include <haproxy/api.h>
-#include <haproxy/conn_stream-t.h>
+#include <haproxy/conn_stream.h>
 #include <haproxy/fd.h>
 #include <haproxy/freq_ctr.h>
 #include <haproxy/obj_type.h>
@@ -313,7 +313,7 @@ static inline void stream_init_srv_conn(struct stream *strm)
 
 static inline void stream_choose_redispatch(struct stream *s)
 {
-	struct stream_interface *si = &s->si[1];
+	struct stream_interface *si = cs_si(s->csb);
 
 	/* If the "redispatch" option is set on the backend, we are allowed to
 	 * retry on another server. By default this redispatch occurs on the
