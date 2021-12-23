@@ -72,8 +72,8 @@ static int hq_interop_decode_qcs(struct qcs *qcs, int fin, void *ctx)
 	htx_add_endof(htx, HTX_BLK_EOH);
 	htx_to_buf(htx, &htx_buf);
 
-	cs = cs_new(qcs->qcc->conn);
-	cs->ctx = qcs;
+	cs = cs_new();
+	cs_attach_endp(cs, &qcs->qcc->conn->obj_type, qcs);
 	stream_create_from_cs(cs, &htx_buf);
 
 	b_del(rxbuf, b_data(rxbuf));
