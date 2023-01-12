@@ -152,7 +152,7 @@ struct task *accept_queue_process(struct task *t, void *context, unsigned int st
 		 * may only be done once l->bind_conf->accept() has accepted the
 		 * connection.
 		 */
-		if (!(li->options & LI_O_UNLIMITED)) {
+		if (!(li->bind_conf->options & BC_O_UNLIMITED)) {
 			HA_ATOMIC_UPDATE_MAX(&global.sps_max,
 			                     update_freq_ctr(&global.sess_per_sec, 1));
 			if (li->bind_conf && li->bind_conf->options & BC_O_USE_SSL) {
@@ -345,7 +345,7 @@ void stop_listener(struct listener *l, int lpx, int lpr)
 {
 	struct proxy *px = l->bind_conf->frontend;
 
-	if (l->options & LI_O_NOSTOP) {
+	if (l->bind_conf->options & BC_O_NOSTOP) {
 		/* master-worker sockpairs are never closed but don't count as a
 		 * job.
 		 */
@@ -844,7 +844,7 @@ void listener_accept(struct listener *l)
 	 */
 	max_accept = l->bind_conf->maxaccept ? l->bind_conf->maxaccept : 1;
 
-	if (!(l->options & LI_O_UNLIMITED) && global.sps_lim) {
+	if (!(l->bind_conf->options & BC_O_UNLIMITED) && global.sps_lim) {
 		int max = freq_ctr_remain(&global.sess_per_sec, global.sps_lim, 0);
 
 		if (unlikely(!max)) {
@@ -857,7 +857,7 @@ void listener_accept(struct listener *l)
 			max_accept = max;
 	}
 
-	if (!(l->options & LI_O_UNLIMITED) && global.cps_lim) {
+	if (!(l->bind_conf->options & BC_O_UNLIMITED) && global.cps_lim) {
 		int max = freq_ctr_remain(&global.conn_per_sec, global.cps_lim, 0);
 
 		if (unlikely(!max)) {
@@ -870,7 +870,7 @@ void listener_accept(struct listener *l)
 			max_accept = max;
 	}
 #ifdef USE_OPENSSL
-	if (!(l->options & LI_O_UNLIMITED) && global.ssl_lim &&
+	if (!(l->bind_conf->options & BC_O_UNLIMITED) && global.ssl_lim &&
 	    l->bind_conf && l->bind_conf->options & BC_O_USE_SSL) {
 		int max = freq_ctr_remain(&global.ssl_per_sec, global.ssl_lim, 0);
 
@@ -939,7 +939,7 @@ void listener_accept(struct listener *l)
 			} while (!_HA_ATOMIC_CAS(&p->feconn, &count, next_feconn));
 		}
 
-		if (!(l->options & LI_O_UNLIMITED)) {
+		if (!(l->bind_conf->options & BC_O_UNLIMITED)) {
 			do {
 				count = actconn;
 				if (unlikely(count >= global.maxconn)) {
@@ -975,7 +975,7 @@ void listener_accept(struct listener *l)
 				_HA_ATOMIC_DEC(&l->nbconn);
 				if (p)
 					_HA_ATOMIC_DEC(&p->feconn);
-				if (!(l->options & LI_O_UNLIMITED))
+				if (!(l->bind_conf->options & BC_O_UNLIMITED))
 					_HA_ATOMIC_DEC(&actconn);
 				continue;
 
@@ -997,7 +997,7 @@ void listener_accept(struct listener *l)
 			proxy_inc_fe_conn_ctr(l, p);
 		}
 
-		if (!(l->options & LI_O_UNLIMITED)) {
+		if (!(l->bind_conf->options & BC_O_UNLIMITED)) {
 			count = update_freq_ctr(&global.conn_per_sec, 1);
 			HA_ATOMIC_UPDATE_MAX(&global.cps_max, count);
 		}
@@ -1151,12 +1151,12 @@ void listener_accept(struct listener *l)
 		 * may only be done once l->bind_conf->accept() has accepted the
 		 * connection.
 		 */
-		if (!(l->options & LI_O_UNLIMITED)) {
+		if (!(l->bind_conf->options & BC_O_UNLIMITED)) {
 			count = update_freq_ctr(&global.sess_per_sec, 1);
 			HA_ATOMIC_UPDATE_MAX(&global.sps_max, count);
 		}
 #ifdef USE_OPENSSL
-		if (!(l->options & LI_O_UNLIMITED) &&
+		if (!(l->bind_conf->options & BC_O_UNLIMITED) &&
 		    l->bind_conf && l->bind_conf->options & BC_O_USE_SSL) {
 			count = update_freq_ctr(&global.ssl_per_sec, 1);
 			HA_ATOMIC_UPDATE_MAX(&global.ssl_max, count);
@@ -1233,7 +1233,7 @@ void listener_release(struct listener *l)
 {
 	struct proxy *fe = l->bind_conf->frontend;
 
-	if (!(l->options & LI_O_UNLIMITED))
+	if (!(l->bind_conf->options & BC_O_UNLIMITED))
 		_HA_ATOMIC_DEC(&actconn);
 	if (fe)
 		_HA_ATOMIC_DEC(&fe->feconn);
