@@ -806,8 +806,8 @@ void delete_listener(struct listener *listener)
  */
 int listener_backlog(const struct listener *l)
 {
-	if (l->backlog)
-		return l->backlog;
+	if (l->bind_conf->backlog)
+		return l->bind_conf->backlog;
 
 	if (l->bind_conf->frontend->backlog)
 		return l->bind_conf->frontend->backlog;
@@ -1536,7 +1536,6 @@ static int bind_parse_accept_netscaler_cip(char **args, int cur_arg, struct prox
 /* parse the "backlog" bind keyword */
 static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	int val;
 
 	if (!*args[cur_arg + 1]) {
@@ -1550,9 +1549,7 @@ static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind)
-		l->backlog = val;
-
+	conf->backlog = val;
 	return 0;
 }
 
