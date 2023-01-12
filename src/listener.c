@@ -1738,7 +1738,6 @@ static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct bi
 /* parse the "nice" bind keyword */
 static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	int val;
 
 	if (!*args[cur_arg + 1]) {
@@ -1752,9 +1751,7 @@ static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bi
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind)
-		l->nice = val;
-
+	conf->nice = val;
 	return 0;
 }
 
