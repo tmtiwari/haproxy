@@ -4729,6 +4729,34 @@ next_frame:
 	/* past this point we cannot roll back in case of error */
 	outlen = hpack_decode_frame(h2c->ddht, hdrs, flen, list,
 	                            sizeof(list)/sizeof(list[0]), tmp);
+
+	if (outlen > 0 &&
+	    (TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, 0, 0)) {
+		const char *n, *v;
+		int i;
+
+		for (i = 0; list[i].n.len; i++) {
+			chunk_reset(&trash);
+			if (!isttest(list[i].n)) {
+				/* pseudo header */
+				n = h2_phdr_to_str(list[i].n.len);
+			} else {
+				/* real header, we must zero-terminate it */
+				n = chunk_newstr(&trash);
+				trash.data += ist2str(b_tail(&trash), list[i].n).len;
+			}
+
+			v = chunk_newstr(&trash);
+			trash.data += ist2str(b_tail(&trash), list[i].v).len;
+
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_RX_FRAME|H2_EV_RX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) hdr[%02d] l=%-4lu %s: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     i, (ulong)list[i].v.len, n, v);
+		}
+	}
+
 	if (outlen < 0) {
 		TRACE_STATE("failed to decompress HPACK", H2_EV_RX_FRAME|H2_EV_RX_HDR|H2_EV_H2C_ERR|H2_EV_PROTO_ERR, h2c->conn);
 		h2c_error(h2c, H2_ERR_COMPRESSION_ERROR);
@@ -5113,6 +5141,12 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 		goto full;
 	}
 
+	if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED)
+		TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+			     "h2c=%p(%c,%s) hdr[--] l=3    :status: %03d",
+			     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+			     h2s->status);
+
 	/* encode all headers, stop at empty name */
 	for (hdr = 0; hdr < sizeof(list)/sizeof(list[0]); hdr++) {
 		/* these ones do not exist in H2 and must be dropped. */
@@ -5135,6 +5169,22 @@ static size_t h2s_frt_make_resp_headers(struct h2s *h2s, struct htx *htx)
 			if (b_space_wraps(mbuf))
 				goto realign_again;
 			goto full;
+		}
+
+		if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+		    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+			const char *n, *v;
+
+			chunk_reset(&trash);
+			n = chunk_newstr(&trash);
+			trash.data += ist2str(b_tail(&trash), list[hdr].n).len;
+			v = chunk_newstr(&trash);
+			trash.data += ist2str(b_tail(&trash), list[hdr].v).len;
+
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) hdr[%02d] l=%-4lu %s: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     hdr, (ulong)list[hdr].v.len, n, v);
 		}
 	}
 
@@ -5390,6 +5440,16 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 		goto full;
 	}
 
+	if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+	    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+		chunk_reset(&trash);
+		trash.data += ist2str(b_tail(&trash), meth).len;
+		TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+			     "h2c=%p(%c,%s) hdr[--] l=%-4lu :method: %s",
+			     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+			     meth.len, trash.area);
+	}
+
 	auth = ist(NULL);
 
 	/* RFC7540 #8.3: the CONNECT method must have :
@@ -5409,6 +5469,17 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 				goto realign_again;
 			goto full;
 		}
+
+		if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+		    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+			chunk_reset(&trash);
+			trash.data += ist2str(b_tail(&trash), auth).len;
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) hdr[--] l=%-4lu :authority: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     auth.len, trash.area);
+		}
+
 		h2s->flags |= H2_SF_BODY_TUNNEL;
 	} else {
 		/* other methods need a :scheme. If an authority is known from
@@ -5468,11 +5539,31 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			goto full;
 		}
 
+		if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+		    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+			chunk_reset(&trash);
+			trash.data += ist2str(b_tail(&trash), scheme).len;
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) hdr[--] l=%-4lu :scheme: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     scheme.len, trash.area);
+		}
+
 		if (auth.len && !hpack_encode_header(&outbuf, ist(":authority"), auth)) {
 			/* output full */
 			if (b_space_wraps(mbuf))
 				goto realign_again;
 			goto full;
+		}
+
+		if (auth.len && (TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+		    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+			chunk_reset(&trash);
+			trash.data += ist2str(b_tail(&trash), auth).len;
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) hdr[--] l=%-4lu :authority: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     auth.len, trash.area);
 		}
 
 		/* encode the path. RFC7540#8.1.2.3: if path is empty it must
@@ -5492,6 +5583,16 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			goto full;
 		}
 
+		if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+		    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+			chunk_reset(&trash);
+			trash.data += ist2str(b_tail(&trash), uri).len;
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) hdr[--] l=%-4lu :path: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     uri.len, trash.area);
+		}
+
 		/* encode the pseudo-header protocol from rfc8441 if using
 		 * Extended CONNECT method.
 		 */
@@ -5505,6 +5606,16 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 					if (b_space_wraps(mbuf))
 						goto realign_again;
 					goto full;
+				}
+
+				if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+				    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+					chunk_reset(&trash);
+					trash.data += ist2str(b_tail(&trash), protocol).len;
+					TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+						     "h2c=%p(%c,%s) hdr[--] l=%-4lu :protocol: %s",
+						     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+						     protocol.len, trash.area);
 				}
 			}
 		}
@@ -5548,6 +5659,22 @@ static size_t h2s_bck_make_req_headers(struct h2s *h2s, struct htx *htx)
 			if (b_space_wraps(mbuf))
 				goto realign_again;
 			goto full;
+		}
+
+		if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+		    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+			const char *n, *v;
+
+			chunk_reset(&trash);
+			n = chunk_newstr(&trash);
+			trash.data += ist2str(b_tail(&trash), list[hdr].n).len;
+			v = chunk_newstr(&trash);
+			trash.data += ist2str(b_tail(&trash), list[hdr].v).len;
+
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) hdr[%02d] l=%-4lu %s: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     hdr, (ulong)list[hdr].v.len, n, v);
 		}
 	}
 
@@ -6096,6 +6223,22 @@ static size_t h2s_make_trailers(struct h2s *h2s, struct htx *htx)
 			if (b_space_wraps(mbuf))
 				goto realign_again;
 			goto full;
+		}
+
+		if ((TRACE_SOURCE)->verbosity >= H2_VERB_ADVANCED &&
+		    TRACE_ENABLED(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0)) {
+			const char *n, *v;
+
+			chunk_reset(&trash);
+			n = chunk_newstr(&trash);
+			trash.data += ist2str(b_tail(&trash), list[idx].n).len;
+			v = chunk_newstr(&trash);
+			trash.data += ist2str(b_tail(&trash), list[idx].v).len;
+
+			TRACE_PRINTF(TRACE_LEVEL_USER, H2_EV_TX_FRAME|H2_EV_TX_HDR, h2c->conn, 0, 0, 0,
+				     "h2c=%p(%c,%s) trl[%02d] l=%-4lu %s: %s",
+				     h2c, (h2c->flags & H2_CF_IS_BACK) ? 'B' : 'F', h2c_st_to_str(h2c->st0),
+				     idx, (ulong)list[idx].v.len, n, v);
 		}
 	}
 
