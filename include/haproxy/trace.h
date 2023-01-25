@@ -84,16 +84,16 @@
 	_trace(TRACE_LEVEL_STATE,     (mask), TRACE_SOURCE, ist(TRC_LOC), NULL, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_DEVEL(msg, mask, args...)    \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __func__, TRC_5ARGS(0,##args,0,0,0,0,0), ist(msg))
 
 #define TRACE_ENTER(mask, args...)  \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("entering"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __func__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("entering"))
 
 #define TRACE_LEAVE(mask, args...)  \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("leaving"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __func__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("leaving"))
 
 #define TRACE_POINT(mask, args...)  \
-	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __FUNCTION__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
+	_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE, ist(TRC_LOC), __func__, TRC_5ARGS(0,##args,0,0,0,0,0), ist("in"))
 
 #if defined(DEBUG_DEV) || defined(DEBUG_FULL)
 #    define DBG_TRACE(msg, mask, args...)        TRACE(msg, mask, ##args)
