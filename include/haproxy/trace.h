@@ -121,6 +121,7 @@
  * encouraged to prepend a context at the beginning of the format string when
  * dumping lists or arrays.
  */
+#if 0
 #define TRACE_PRINTF(level, mask, a1, a2, a3, a4, fmt, args...)		\
 	do {									\
 		if (TRACE_ENABLED((level), (mask), a1, a2, a3, a4)) {		\
@@ -131,6 +132,24 @@
 				_msg_len = sizeof(_msg) - 1;			\
 			_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE,	\
 			       ist(TRC_LOC), __func__, a1, a2, a3, a4,		\
+			       &trace_no_cb, ist2(_msg, _msg_len));		\
+		}								\
+	} while (0)
+#endif
+
+#define TRACE_PRINTF(level, mask, a1, a2, a3, a4, fmt, args...)		\
+	TRACE_PRINTF_LOC(level, mask, ist(TRC_LOC), __func__, a1, a2, a3, a4, fmt, ##args)
+
+#define TRACE_PRINTF_LOC(level, mask, trc_loc, func, a1, a2, a3, a4, fmt, args...) \
+	do {									\
+		if (TRACE_ENABLED((level), (mask), a1, a2, a3, a4)) {		\
+			char _msg[TRACE_MAX_MSG];				\
+			size_t _msg_len;					\
+			_msg_len = snprintf(_msg, sizeof(_msg), (fmt), ##args);	\
+			if (_msg_len >= sizeof(_msg))				\
+				_msg_len = sizeof(_msg) - 1;			\
+			_trace(TRACE_LEVEL_DEVELOPER, (mask), TRACE_SOURCE,	\
+			       trc_loc, func, a1, a2, a3, a4,			\
 			       &trace_no_cb, ist2(_msg, _msg_len));		\
 		}								\
 	} while (0)
