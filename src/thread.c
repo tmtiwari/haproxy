@@ -1225,65 +1225,58 @@ int thread_map_to_groups()
  *
  * Returns <0 on failure, >=0 on success.
  */
-int thread_resolve_group_mask(uint igid, ulong imask, uint *ogid, ulong *omask, char **err)
+int thread_resolve_group_mask(struct thread_set *ts, uint *ogid, ulong *omask, char **err)
 {
-	ulong mask;
-	uint t;
+	struct thread_set new_ts = { 0 };
+	ulong mask, imask;
+	uint g;
 
-	if (igid == 0) {
+	if (!ts->nbgrp) {
 		/* unspecified group, IDs are global */
-		if (!imask) {
+		if (thread_set_is_empty(ts)) {
 			/* all threads of all groups */
-			if (global.nbtgroups > 1) {
-				memprintf(err, "'thread' directive spans multiple groups");
-				return -1;
-			}
-			*ogid = 1; // first and only group
-			*omask = ha_tgroup_info[0].threads_enabled;
-			return 0;
+			for (g = 0; g < global.nbtgroups; g++)
+				new_ts.rel[g] = ha_tgroup_info[g].threads_enabled;
+
+			new_ts.nbgrp = global.nbtgroups;
 		} else {
-			/* some global threads */
-			for (t = 0; t < global.nbthread; t++) {
-				if (imask & (1UL << t)) {
-					if (ha_thread_info[t].tgid != igid) {
-						if (!igid)
-							igid = ha_thread_info[t].tgid;
-						else {
-							memprintf(err, "'thread' directive spans multiple groups (at least %u and %u)", igid, ha_thread_info[t].tgid);
-							return -1;
-						}
-					}
-				}
-			}
+			/* some absolute threads are set, we must remap them to
+			 * relative ones. Each group cannot have more than
+			 * LONGBITS threads, thus it spans at most two absolute
+			 * blocks.
+			 */
+			for (g = 0; g < global.nbtgroups; g++) {
+				uint block = ha_tgroup_info[g].base / LONGBITS;
+				uint base  = ha_tgroup_info[g].base % LONGBITS;
 
-			if (!igid) {
-				memprintf(err, "'thread' directive contains threads that belong to no group");
-				return -1;
-			}
+				mask = ts->abs[block] >> base;
+				if (base && ha_tgroup_info[g].count > (LONGBITS - base))
+					mask |= ts->abs[block + 1] << (LONGBITS - base);
+				mask &= nbits(ha_tgroup_info[g].count);
+				mask &= ha_tgroup_info[g].threads_enabled;
 
-			/* we have a valid group, convert this to global thread IDs */
-			*ogid = igid;
-			imask = imask >> ha_tgroup_info[igid - 1].base;
-			imask &= ha_tgroup_info[igid - 1].threads_enabled;
-			*omask = imask;
-			return 0;
+				/* now the mask exactly matches the threads to be enabled
+				 * in this group.
+				 */
+				if (!new_ts.rel[g] && mask)
+					new_ts.nbgrp++;
+				new_ts.rel[g] |= mask;
+			}
 		}
 	} else {
-		/* group was specified */
-		if (igid > global.nbtgroups) {
-			memprintf(err, "'thread' directive references non-existing thread group %u", igid);
-			return -1;
-		}
+		/* groups were specified */
+		for (g = 0; g < MAX_TGROUPS; g++) {
+			imask = ts->rel[g];
+			if (!imask)
+				continue;
 
-		if (!imask) {
-			/* all threads of this groups. Let's make a mask from their count and base. */
-			*ogid = igid;
-			*omask = nbits(ha_tgroup_info[igid - 1].count);
-			return 0;
-		} else {
-			/* some local threads. Keep only existing ones for this group */
+			if (g >= global.nbtgroups) {
+				memprintf(err, "'thread' directive references non-existing thread group %u", g+1);
+				return -1;
+			}
 
-			mask = nbits(ha_tgroup_info[igid - 1].count);
+			/* some relative threads are set. Keep only existing ones for this group */
+			mask = nbits(ha_tgroup_info[g].count);
 
 			if (!(mask & imask)) {
 				/* no intersection between the thread group's
